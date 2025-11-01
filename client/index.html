@@ -1,0 +1,156 @@
+client/index.html<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Restaurant Booking App</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Include React and ReactDOM from a CDN. Using the development build for simplicity. -->
+  <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <!-- Babel allows us to use JSX in the browser. -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Main React application code. -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      // Local state to hold restaurants, reservation form and messages
+      const [restaurants, setRestaurants] = useState([]);
+      const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+      const [customerName, setCustomerName] = useState('');
+      const [date, setDate] = useState('');
+      const [time, setTime] = useState('');
+      const [people, setPeople] = useState(2);
+      const [message, setMessage] = useState('');
+
+      // Load the list of restaurants from the API on component mount
+      useEffect(() => {
+        fetch('/api/restaurants')
+          .then((res) => res.json())
+          .then((data) => setRestaurants(data))
+          .catch((err) => console.error(err));
+      }, []);
+
+      // Called when a user clicks the "Book Now" button for a restaurant
+      const handleBook = (restaurant) => {
+        setSelectedRestaurant(restaurant);
+        setMessage('');
+      };
+
+      // Handle form submission to create a reservation
+      const submitReservation = (e) => {
+        e.preventDefault();
+        if (!selectedRestaurant) return;
+        fetch('/api/reservations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurantId: selectedRestaurant.id,
+            customerName,
+            date,
+            time,
+            people: parseInt(people, 10),
+          }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error('Failed to create reservation');
+            return res.json();
+          })
+          .then(() => {
+            setMessage('Reservation confirmed!');
+            // Reset form values
+            setCustomerName('');
+            setDate('');
+            setTime('');
+            setPeople(2);
+            setSelectedRestaurant(null);
+          })
+          .catch((err) => {
+            console.error(err);
+            setMessage('Error creating reservation. Please try again.');
+          });
+      };
+
+      return (
+        <div className="container">
+          <h1>Restaurant Booking App</h1>
+          <h2>Available Restaurants</h2>
+          <ul className="restaurant-list">
+            {restaurants.map((rest) => (
+              <li key={rest.id} className="restaurant-item">
+                <h3>{rest.name}</h3>
+                <p>{rest.description}</p>
+                <p>
+                  <strong>Location:</strong> {rest.location}
+                </p>
+                <p>
+                  <strong>Cuisine:</strong> {rest.cuisine}
+                </p>
+                <button onClick={() => handleBook(rest)}>Book Now</button>
+              </li>
+            ))}
+          </ul>
+
+          {selectedRestaurant && (
+            <div className="form-container">
+              <h2>
+                Book a table at <span className="rest-name">{selectedRestaurant.name}</span>
+              </h2>
+              <form onSubmit={submitReservation} className="reservation-form">
+                <div className="form-group">
+                  <label>Your Name:</label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date:</label>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      required
+                    />
+                </div>
+                <div className="form-group">
+                  <label>Time:</label>
+                  <input
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Number of People:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={people}
+                    onChange={(e) => setPeople(e.target.value)}
+                    required
+                  />
+                </div>
+                <button type="submit">Confirm Booking</button>
+              </form>
+            </div>
+          )}
+
+          {message && <p className="message">{message}</p>}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
