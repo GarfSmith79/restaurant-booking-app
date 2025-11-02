@@ -1,2 +1,202 @@
 <!DOCTYPE html>
-<!-- (Eden Bakes index.html content omitted for brevity) -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eden Bakes — Restaurant Booking</title>
+
+  <!-- Nunito font + theme color -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#9ac100" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Compact Eden Bakes header -->
+  <header class="app-head container">
+    <h1 class="app-title">
+      <!-- If you upload a logo file to this folder, name it eden-bakes-logo.png -->
+      <img src="./eden-bakes-logo.png" alt="Eden Bakes logo" width="40" height="40" style="border-radius:10px" onerror="this.style.display='none'"/>
+      Restaurant Booking App
+      <span class="badge">Eden Bakes</span>
+    </h1>
+    <button class="btn btn-ghost" id="apiBtn" title="Set API base URL (optional)">API</button>
+  </header>
+
+  <div id="root"></div>
+
+  <!-- React + ReactDOM (dev builds for simplicity) -->
+  <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <!-- Babel to allow JSX inline -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script>
+    // ===== API base auto-detect with safe overrides =====
+    // Priority: ?api=... > localStorage.API_BASE > default ('')
+    function getApiBase() {
+      try {
+        const qs = new URLSearchParams(window.location.search);
+        const fromQuery = qs.get('api');
+        if (fromQuery) return fromQuery.replace(/\/$/, '');
+      } catch (e) {}
+      try {
+        const ls = localStorage.getItem('API_BASE');
+        if (ls) return ls.replace(/\/$/, '');
+      } catch (e) {}
+      // default: same origin (useful if you proxy /api in the same sandbox or locally)
+      return '';
+    }
+    function setApiBaseInteractive() {
+      const current = getApiBase();
+      const next = prompt('Set API base URL (e.g. https://<your-server>.codesandbox.io). Leave blank for same origin.', current || '');
+      if (next === null) return;
+      try {
+        if (next.trim() === '') {
+          localStorage.removeItem('API_BASE');
+        } else {
+          localStorage.setItem('API_BASE', next.trim().replace(/\/$/, ''));
+        }
+        location.reload();
+      } catch (e) { alert('Could not store setting: ' + e.message); }
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('apiBtn');
+      if (btn) btn.addEventListener('click', setApiBaseInteractive);
+    });
+    const API_BASE = getApiBase();
+    const api = (path) => (API_BASE ? API_BASE : '') + path;
+  </script>
+
+  <!-- Main React application -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      const [restaurants, setRestaurants] = useState([]);
+      const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+      const [customerName, setCustomerName] = useState('');
+      const [date, setDate] = useState('');
+      const [time, setTime] = useState('');
+      const [people, setPeople] = useState(2);
+      const [message, setMessage] = useState('');
+
+      useEffect(() => {
+        fetch(api('/api/restaurants'))
+          .then((res) => res.json())
+          .then((data) => setRestaurants(data))
+          .catch(console.error);
+      }, []);
+
+      const handleBook = (restaurant) => {
+        setSelectedRestaurant(restaurant);
+        setMessage('');
+      };
+
+      const submitReservation = (e) => {
+        e.preventDefault();
+        if (!selectedRestaurant) return;
+
+        fetch(api('/api/reservations'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurantId: selectedRestaurant.id,
+            customerName,
+            date,
+            time,
+            people: Math.max(1, parseInt(people, 10) || 1),
+          }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error('Failed to create reservation');
+            return res.json();
+          })
+          .then(() => {
+            setMessage('Reservation confirmed!');
+            setCustomerName('');
+            setDate('');
+            setTime('');
+            setPeople(2);
+            setSelectedRestaurant(null);
+          })
+          .catch(() => setMessage('Error creating reservation. Please try again.'));
+      };
+
+      return (
+        <div className="container">
+          <h2>Available Restaurants</h2>
+          <ul className="restaurant-list">
+            {restaurants.map((rest) => (
+              <li key={rest.id} className="restaurant-item">
+                <h3>{rest.name}</h3>
+                <p>{rest.description}</p>
+                <div className="meta">
+                  <span className="pill">{rest.location}</span>
+                  <span className="pill">{rest.cuisine}</span>
+                </div>
+                <button className="btn btn-primary" onClick={() => handleBook(rest)}>
+                  Book Now
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {selectedRestaurant && (
+            <div className="form-container">
+              <h2>
+                Book a table at <span className="rest-name">{selectedRestaurant.name}</span>
+              </h2>
+              <form onSubmit={submitReservation} className="reservation-form">
+                <div className="form-group">
+                  <label>Your Name:</label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date:</label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Time:</label>
+                  <input
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Number of People:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={people}
+                    onChange={(e) => setPeople(e.target.value)}
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn btn-primary">Confirm Booking</button>
+              </form>
+            </div>
+          )}
+
+          {message && <p className="message">{message}</p>}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
